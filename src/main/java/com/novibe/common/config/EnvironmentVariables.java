@@ -14,4 +14,6 @@ public class EnvironmentVariables {
 
     public static final String REDIRECT = System.getenv("REDIRECT");
 
+    public static final String EXCLUDE = System.getenv("EXCLUDE");
+
 }

@@ -19,7 +19,8 @@ public class HostsOverrideListsLoader extends ListLoader<HostsOverrideListsLoade
                 .filter(str -> !str.isBlank())
                 .filter(line -> !line.startsWith("#"))
                 .filter(line -> !HostsBlockListsLoader.isBlock(line))
-                .map(this::mapLine);
+                .map(this::mapLine)
+                .filter(route -> !DomainFilter.isExcluded(route.website()));
     }
 
     @Override

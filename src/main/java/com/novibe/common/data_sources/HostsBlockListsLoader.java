@@ -28,7 +28,8 @@ public class HostsBlockListsLoader extends ListLoader<String> {
                 .filter(line -> !line.startsWith("#"))
                 .filter(HostsBlockListsLoader::isBlock)
                 .map(this::removeIp)
-                .map(String::toLowerCase);
+                .map(String::toLowerCase)
+                .filter(domain -> !DomainFilter.isExcluded(domain));
     }
 
     private String removeIp(String line) {
