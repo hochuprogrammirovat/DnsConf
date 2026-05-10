@@ -1,5 +1,6 @@
 package com.novibe.dns.next_dns.service;
 
+import com.novibe.common.data_sources.DomainFilter;
 import com.novibe.common.data_sources.HostsOverrideListsLoader;
 import com.novibe.common.util.Log;
 import com.novibe.dns.next_dns.http.NextDnsRateLimitedApiProcessor;
@@ -36,6 +37,10 @@ public class NextDnsRewriteService {
         for (RewriteDto existingRewrite : existingRewrites) {
             String domain = existingRewrite.name();
             String oldIp = existingRewrite.content();
+            if (DomainFilter.isExcluded(domain)) {
+                outdatedIds.add(existingRewrite.id());
+                continue;
+            }
             CreateRewriteDto request = newRewriteRequests.get(domain);
             if (nonNull(request) && !request.getContent().equals(oldIp)) {
                 outdatedIds.add(existingRewrite.id());
