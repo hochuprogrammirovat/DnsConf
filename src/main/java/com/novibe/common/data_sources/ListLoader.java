@@ -1,31 +1,35 @@
 package com.novibe.common.data_sources;
 
+import com.novibe.common.base_structures.HostsLine;
+import com.novibe.common.util.DataParser;
 import com.novibe.common.util.Log;
 import lombok.Cleanup;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Profile;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.StructuredTaskScope;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-@Profile("CLOUDFLARE")
 @Setter(onMethod_ = @Autowired)
 public abstract class ListLoader<T> {
 
     private HttpClient client;
 
-    protected abstract Stream<T> lineParser(String urlList);
+    protected abstract T toObject(HostsLine hostsLine);
 
     protected abstract String listType();
+
+    protected abstract Predicate<HostsLine> filterRelatedLines();
 
     @SneakyThrows
     @SuppressWarnings("preview")
@@ -38,8 +42,17 @@ public abstract class ListLoader<T> {
         scope.join();
         return requests.stream()
                 .map(StructuredTaskScope.Subtask::get)
-                .flatMap(this::lineParser)
+                .flatMap(DataParser::splitByEol)
+                .map(String::strip)
+                .parallel()
+                .filter(line -> !line.isBlank())
+                .filter(line -> !DataParser.isComment(line))
+                .map(String::toLowerCase)
+                .map(DataParser::parseHostsLine)
+                .filter(Objects::nonNull)
+                .filter(filterRelatedLines())
                 .distinct()
+                .map(this::toObject)
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
@@ -49,7 +62,7 @@ public abstract class ListLoader<T> {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .GET()
                 .build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString()).body();
+        return client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
     }
 
 }

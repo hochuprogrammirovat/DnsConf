@@ -26,10 +26,11 @@ public class RuleService {
     private final CloudflareRuleClient cloudflareRuleClient;
     private final String sessionId;
 
-    public void createNewBlockingRule(List<GatewayListDto> lists) {
+    public void createNewBlockingRule(List<GatewayListDto> lists, RulePrecedenceCounter rulePrecedenceCounter) {
         String traffic = makeTrafficExpression(lists);
         CreateRuleRequest rule = CreateRuleRequest.builder()
-                .name(RULES_LIST_NAME_PREFIX)
+                .name(RULES_LIST_NAME_PREFIX + ": block")
+                .precedence(rulePrecedenceCounter.next())
                 .action("block")
                 .description(sessionId)
                 .filters(List.of("dns"))
@@ -45,20 +46,21 @@ public class RuleService {
 
     @SneakyThrows
     @SuppressWarnings("preview")
-    public void createNewOverrideRules(Map<String, List<GatewayListDto>> lists) {
+    public void createNewOverrideRules(Map<String, List<GatewayListDto>> lists, RulePrecedenceCounter rulePrecedenceCounter) {
         @Cleanup var scope = StructuredTaskScope.open();
         for (Map.Entry<String, List<GatewayListDto>> entry : lists.entrySet()) {
             String overrideIp = entry.getKey();
             List<GatewayListDto> list = entry.getValue();
-            scope.fork(() -> createNewOverrideRule(list, overrideIp));
+            scope.fork(() -> createNewOverrideRule(list, overrideIp, rulePrecedenceCounter.next()));
         }
         scope.join();
     }
 
-    private void createNewOverrideRule(List<GatewayListDto> lists, String overrideIp) {
+    private void createNewOverrideRule(List<GatewayListDto> lists, String overrideIp, int precedence) {
         String traffic = makeTrafficExpression(lists);
         CreateRuleRequest rule = CreateRuleRequest.builder()
                 .name(RULES_LIST_NAME_PREFIX + " override to IP -> " + overrideIp)
+                .precedence(precedence)
                 .action("override")
                 .description(sessionId)
                 .filters(List.of("dns"))
@@ -73,24 +75,29 @@ public class RuleService {
         }
     }
 
-    public void removeOldRules() {
-        List<String> oldIds = cloudflareRuleClient.getRules().getResult().stream()
+    public List<GatewayRuleDto> obtainExistingRules() {
+        return cloudflareRuleClient.getRules().getResult();
+    }
+
+    public List<GatewayRuleDto> removeOldRules(List<GatewayRuleDto> rules) {
+        List<GatewayRuleDto> removeList = rules.stream()
                 .filter(rule -> rule.getName().startsWith(RULES_LIST_NAME_PREFIX))
                 .filter(rule -> !sessionId.equals(rule.getDescription()))
-                .map(GatewayRuleDto::getId)
                 .toList();
-        Log.io("Removing old rules...");
+        Log.io("Removing " + removeList.size() + " old rules...");
         int counter = 0;
-        for (String id : oldIds) {
+        for (GatewayRuleDto rule : removeList) {
+            String id = rule.getId();
             SingleRuleApiResponse result = cloudflareRuleClient.removeRuleById(id);
             if (!result.isSuccess()) {
                 Log.fail("Failed to remove old rule with id %s: %s".formatted(id, result.getErrors()));
             } else {
-                Log.progress(++counter + "/" + oldIds.size());
+                Log.progress(++counter + "/" + removeList.size());
+                rules.remove(rule);
             }
         }
-        Log.common("\n%s of %s old rules have been removed".formatted(counter, oldIds.size()));
-
+        Log.common("\n%s of %s old rules have been removed".formatted(counter, removeList.size()));
+        return rules;
     }
 
     private String makeTrafficExpression(List<GatewayListDto> lists) {

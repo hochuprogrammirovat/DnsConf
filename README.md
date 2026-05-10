@@ -3,7 +3,7 @@
 # DNS Block&Redirect Configurer
 **Allows to set Redirect and Block rules to your Cloudflare and NextDNS accounts.**
 
-**Ready-to-run via GitHub Actions.** [Video guide](#step-by-step-video-guide-redirect-for-nextdns)
+**Ready-to-run via GitHub Actions.** [Video guide](https://www.youtube.com/watch?v=vbAXM_xAL5I)
 
 [General comparison: Cloudflare vs NextDNS](#cloudflare-vs-nextdns)
 
@@ -15,7 +15,13 @@
 
 [Setup data sources](#setup-data-sources)
 
+[Setup exclude redirects (optional)](#setup-exclude-redirects-optional)
+
+[Multiple profiles setup](#multiple-profiles-setup)
+
 [GitHub Actions](#github-actions-setup)
+
+---
 
 ## Cloudflare vs NextDNS
 
@@ -54,9 +60,12 @@ Set **Account ID** to **environment variable** `CLIENT_ID`
 2) Click on **NextDNS** logo. On the opened page, copy ID from Endpoints section.
    Set it as **environment variable** `CLIENT_ID`
 
+---
 
 ## Setup profile
 Set **environment variable** `DNS` with DNS provider name (**Cloudflare** or **NextDNS**)
+
+---
 
 ## Setup data sources
 Each data source must be a link to a hosts file, e.g. https://raw.githubusercontent.com/Internet-Helper/GeoHideDNS/refs/heads/main/hosts/hosts
@@ -97,6 +106,41 @@ will keep only `domain.to.block` and `another.to.block` for the further block pr
 + You may want to provide the same source for both `BLOCK` and `REDIRECT` for **Cloudflare**.
 + For **NextDNS**, the best option might be to set `REDIRECT` only, and then manually choose any blocklists at the _Privacy_ tab.
 
+---
+
+## Setup exclude redirects (optional)
+
+Put domains to **environment variable** `EXCLUDE_REDIRECT` separated by coma, e.g. `instagram.com,twitch.com`
+
+These domains and their subdomains:
+- will be removed from existing redirect rules;
+- won't be added with new ones.
+
+---
+
+## Multiple profiles setup
+
+### Restrictions
+All profiles get _similar_ settings. That means `BLOCK`, `REDIRECT` and `EXCLUDE_REDIRECT` are **shared**.
+
+### Multiple profiles of single provider
+
+Put your profiles separated by coma **without whitespace** into related **environment variables**.
+E.g., two NextDNS profiles must be set as shown:
+
+- `AUTH_SECRET` has: `secret_NextDns_1,secret_NextDns_2`
+- `CLIENT_ID` has `client_id_NextDns_1,client_id_NextDns_2`
+
+### Multiple profiles of different providers
+
+In addition to setting above, list provider for each profile in **environment variable** `DNS`. For example:
+
+- `DNS` has: `NEXTDNS,CLOUDFLARE,NEXTDNS`
+- `AUTH_SECRET` has: `secret_NextDns_1,secret_Cloudflare_1,secret_NextDns_2`
+- `CLIENT_ID` has `client_id_NextDns_1,client_id_Cloudflare_1,client_id_NextDns_2`
+
+---
+
 ## Script Behaviour
 ### Cloudflare
 Previously generated data will be removed. Script recognizes old data by marks:
@@ -124,6 +168,8 @@ For `BLOCK`:
 
 Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` sources were not provided.
 
+---
+
 ## GitHub Actions setup
 
 #### Step-by-step video guide: [REDIRECT for NextDNS](https://www.youtube.com/watch?v=vbAXM_xAL5I)
@@ -134,7 +180,7 @@ Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` s
 2) Go _Settings_ => _Environments_
 3) Create _New environment_ with name `DNS`
 4) Provide `AUTH_SECRET` and `CLIENT_ID` to **Environment secrets**
-5) Provide `DNS`,`REDIRECT` and `BLOCK` to **Environment variables**
+5) Provide `DNS`,`REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
 
 + The action will be launched every day at **01:30 UTC**. To set another time, change cron at `.github/workflows/github_action.yml`
 + You can run the action manually via `Run workflow` button: switch to _Actions_ tab and choose workflow named **DNS Block&Redirect Configurer cron task**

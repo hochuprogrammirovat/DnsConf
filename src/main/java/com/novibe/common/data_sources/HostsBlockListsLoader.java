@@ -1,50 +1,46 @@
 package com.novibe.common.data_sources;
 
+import com.novibe.common.base_structures.HostsLine;
 import org.springframework.stereotype.Service;
 
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 @Service
 public class HostsBlockListsLoader extends ListLoader<String> {
 
-    private static final String[] BLOCK_PREFIXES = { "0.0.0.0 ", "127.0.0.1 "};
-
-    public static boolean isBlock(String line) {
-        for (String blockPrefix : BLOCK_PREFIXES) {
-            if (line.startsWith(blockPrefix)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    protected Stream<String> lineParser(String urlList) {
-        return Pattern.compile("\\r?\\n").splitAsStream(urlList)
-                .parallel()
-                .map(String::strip)
-                .filter(str -> !str.isBlank())
-                .filter(line -> !line.startsWith("#"))
-                .filter(HostsBlockListsLoader::isBlock)
-                .map(this::removeIp)
-                .map(String::toLowerCase)
-                .filter(domain -> !DomainFilter.isExcluded(domain));
-    }
-
-    private String removeIp(String line) {
-        for (String blockPrefix : BLOCK_PREFIXES) {
-            if (line.startsWith(blockPrefix)) {
-                return line.substring(blockPrefix.length() - 1);
-            }
-        }
-        return line;
-    }
+    private static final String[] BLOCK_IPS = {"0.0.0.0", "127.0.0.1", "::1"};
+    private static final String[] LOCALHOST_NAME = {"localhost", "ip6-localhost"};
 
     @Override
     protected String listType() {
         return "Block";
     }
 
+    @Override
+    protected Predicate<HostsLine> filterRelatedLines() {
+        return line -> isBlockIp(line.ip()) && !isLocalhost(line.domain());
+    }
+
+    @Override
+    protected String toObject(HostsLine line) {
+        return line.domain();
+    }
+
+    static boolean isBlockIp(String ip) {
+        for (String blockIp : BLOCK_IPS) {
+            if (blockIp.equals(ip)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLocalhost(String domain) {
+        for (String localhost : LOCALHOST_NAME) {
+            if (domain.equals(localhost))
+                return true;
+        }
+        return false;
+    }
 
 }
